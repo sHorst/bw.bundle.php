@@ -18,9 +18,6 @@ def default_php_metadata(metadata):
                 'modules': {
                     "curl": {'enabled': True, },
                     "gd": {'enabled': True, },
-                    "cgi": {'enabled': True, },
-                    "dev": {'enabled': True, },
-#                    'pear',
                 },
                 'config_path': php_config_path,
             }
@@ -47,6 +44,10 @@ def add_apt_packages(metadata):
         # install php version for current os
         metadata['apt']['packages']['php{version}'.format(version=php_version)] = {'installed': True}
 
+        # install cgi and dev packages
+        metadata['apt']['packages']['php{version}-cgi'.format(version=php_version)] = {'installed': True}
+        metadata['apt']['packages']['php{version}-dev'.format(version=php_version)] = {'installed': True}
+
         if node.os == 'debian':
             if node.os_version[0] < 9:
                 # PHP is not thread save, so install preforked
@@ -59,7 +60,7 @@ def add_apt_packages(metadata):
 
         pecl = False
         pear = False
-        for mod_name, mod_config in node.metadata['php'].get('modules', {}).items():
+        for mod_name, mod_config in metadata['php'].get('modules', {}).items():
             if mod_config.get('pecl', False):
                 pecl = True
             elif mod_config.get('pear', False):
