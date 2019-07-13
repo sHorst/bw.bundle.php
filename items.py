@@ -1,46 +1,9 @@
-php_version = '5'
-php_config_path = '/etc/php'
-
-if node.os == 'debian' and node.os_version[0] >= 9:
-    php_version = '7.0'
-    php_config_path = '/etc/php/7.0'
+php_version = node.metadata['php']['version']
+php_config_path = node.metadata['php']['config_path']
 
 actions = {}
-pkg_apt = {
-    "php{}".format(php_version): {
-        "installed": True,
-    },
-    "php{}-curl".format(php_version): {
-        "installed": True,
-    },
-    "php{}-gd".format(php_version): {
-        "installed": True,
-    },
-    "php{}-cgi".format(php_version): {
-        "installed": True,
-    },
-    "php{}-dev".format(php_version): {
-        "installed": True,
-    },
-    'php-pear': {
-        "installed": True,
-    },
-    # 'libcurl3-openssl-dev': {
-    #     "installed": True,
-    # },
-}
 
 git_deploy = {}
-
-if node.os == 'debian':
-    if node.os_version[0] < 9:
-        # PHP is not thread save, so install preforked
-        pkg_apt["apache2-mpm-prefork"] = {"installed": True, }
-        pkg_apt["apache2-mpm-event"] = {"installed": False, }
-        pkg_apt["apache2-mpm-worker"] = {"installed": False, }
-    elif node.os_version[0] == 9:
-        # install php7.0-xml to have utf8-decode/utf8-encode
-        pkg_apt['php7.0-xml'] = {'installed': True}
 
 needs = []
 pecl = False
@@ -133,7 +96,6 @@ for mod_name, mod_config in node.metadata.get('php', {}).get('modules', {}).item
 
     else:
         mod_aptname = mod_config.get('apt', 'php{}-{}'.format(php_version, mod_name))
-        pkg_apt[mod_aptname] = {'installed': True, }
 
         needs += [
             'pkg_apt:{}'.format(mod_aptname)
@@ -154,5 +116,3 @@ for mod_name, mod_config in node.metadata.get('php', {}).get('modules', {}).item
             'cascade_skip': False,
         }
 
-if pecl:
-    pkg_apt['build-essential'] = {'installed': True, }
