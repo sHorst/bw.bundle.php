@@ -11,7 +11,6 @@ def default_php_metadata(metadata):
             php_version = '7.3'
             php_config_path = '/etc/php/7.3'
 
-
     default_metadata = {
             'php': {
                 'version': php_version,
@@ -46,6 +45,7 @@ def add_apt_packages(metadata):
 
         # install cgi and dev packages
         metadata['apt']['packages']['php{version}-cgi'.format(version=php_version)] = {'installed': True}
+        metadata['apt']['packages']['php{version}-fpm'.format(version=php_version)] = {'installed': True}
         metadata['apt']['packages']['php{version}-dev'.format(version=php_version)] = {'installed': True}
 
         if node.os == 'debian':
@@ -73,6 +73,5 @@ def add_apt_packages(metadata):
             metadata['apt']['packages']['php-pear'] = {'installed': True, }
         if pecl:
             metadata['apt']['packages']['build-essential'] = {'installed': True, }
-
 
     return metadata, DONE
