@@ -34,6 +34,7 @@ def add_apt_packages(metadata):
 
     # install cgi and dev packages
     packages['php{version}-cgi'.format(version=php_version)] = {'installed': True}
+    packages['php{version}-fpm'.format(version=php_version)] = {'installed': True}
     packages['php{version}-dev'.format(version=php_version)] = {'installed': True}
 
     if node.os == 'debian':
