@@ -1,118 +1,162 @@
-php_version = node.metadata['php']['version']
-php_config_path = node.metadata['php']['config_path']
-
 actions = {}
-
 git_deploy = {}
+files = {}
 
-needs = []
-pecl = False
-for mod_name, mod_config in node.metadata.get('php', {}).get('modules', {}).items():
-    if mod_config.get('pecl', False):
-        pecl = True
-        mod_peclname = mod_config.get('pecl_name', mod_name)
-        git = mod_config.get('git', None)
 
-        if git:
-            actions['git_clone_pecl_{}'.format(mod_name)] = {
-                'command': 'cd /tmp && rm -rf pecl_{name} && git clone {git} pecl_{name}'.format(
-                    git=git,
-                    name=mod_name
-                ),
-                'unless': 'test -f {path}/mods-available/{name}.ini'.format(path=php_config_path, name=mod_name),
-            }
-            actions['pecl_{}_phpize'.format(mod_name)] = {
-                'command': 'cd /tmp/pecl_{name} && /usr/bin/phpize7.0'.format(name=mod_name),
-                'needs': [
-                    'action:git_clone_pecl_{}'.format(mod_name),
-                    'pkg_apt:build-essential'
-                ],
-                'unless': 'test -f {path}/mods-available/{name}.ini || test -f /tmp/pecl_{name}/configure'.format(
-                    path=php_config_path,
-                    name=mod_name
-                ),
-            }
-            actions['pecl_{}_configure'.format(mod_name)] = {
-                'command': 'cd /tmp/pecl_{name} && ./configure'.format(name=mod_name),
-                'needs': [
-                    'action:pecl_{}_phpize'.format(mod_name)
-                ],
-                'unless': 'test -f {path}/mods-available/{name}.ini || test -f /tmp/pecl_{name}/Makefile'.format(
-                    path=php_config_path,
-                    name=mod_name
-                ),
-            }
-            actions['pecl_{}_make_install'.format(mod_name)] = {
-                'command': 'cd /tmp/pecl_{name} && make && make install'.format(name=mod_name),
-                'needs': [
-                    'action:pecl_{}_configure'.format(mod_name)
-                ],
-                'unless': 'test -f {path}/mods-available/{name}.ini'.format(
-                    path=php_config_path,
-                    name=mod_name
-                ),
-            }
-            actions['pecl_{}_create_ini'.format(mod_name)] = {
-                'command': 'echo "; configuration for php bbcode module\n'
-                           '; priority=20\n'
-                           'extension={name}.so" > {path}/mods-available/{name}.ini'.format(
-                               path=php_config_path,
-                               name=mod_name,
-                           ),
-                'needs': [
-                    'action:pecl_{}_make_install'.format(mod_name),
-                ],
-                'unless': 'test -f {path}/mods-available/{name}.ini'.format(
-                    path=php_config_path,
-                    name=mod_name
-                ),
-            }
+if node.has_bundle('apt'):
+    files['/etc/apt/sources.list.d/php.list'] = {
+        'content': 'deb https://packages.sury.org/php/ {release_name} main\n'.format(
+            release_name=node.metadata.get(node.os).get('release_name')
+        ),
+        'content_type': 'text',
+        'needs': ['file:/etc/apt/trusted.gpg.d/php.gpg', ],
+        'triggers': ["action:force_update_apt_cache", ],
+    }
+    files['/etc/apt/trusted.gpg.d/php.gpg'] = {
+        'content_type': 'binary',
+    }
 
-            needs += ['action:pecl_{}_create_ini'.format(mod_name), ]
-        else:
-            actions['pecl_install_{}'.format(mod_peclname)] = {
-                'command': '/usr/bin/pecl install {}'.format(mod_name),
-                'unless': 'test -f {path}/mods-available/{name}.ini'.format(path=php_config_path, name=mod_name),
-                'needs': ['pkg_apt:build-essential'],
+
+for php_version, php_config in node.metadata.get('php', {}).get('versions', {}).items():
+    php_config_path = php_config['config_path']
+
+    svc_systemd = {
+        f'php{php_version}-fpm.service': {},
+    }
+
+    needs = []
+    for mod_name, mod_config in php_config.get('modules', {}).items():
+        if mod_config.get('pecl', False):
+            mod_pecl_name = mod_config.get('pecl_name', mod_name)
+            git = mod_config.get('git', None)
+
+            if git:
+                git_deploy[f'/tmp/pecl_{mod_pecl_name}'] = {
+                    'repo': git,
+                    'rev': mod_config.get('rev', 'master'),
+                    # not needed, if we already have an ini
+                    # TODO: make this dependent on different content
+                    'unless': f'test -f {php_config_path}/mods-available/{mod_name}.ini',
+                }
+                # actions[f'git_clone_pecl_{mod_name}_php{php_version}'] = {
+                #     'command': f'cd /tmp && rm -rf pecl_{mod_pecl_name} && git clone {git} pecl_{mod_pecl_name}',
+                # }
+
+                actions[f'pecl_{mod_name}_phpize{php_version}'] = {
+                    'command': f'cd /tmp/pecl_{mod_pecl_name} && /usr/bin/phpize{php_version}',
+                    'needs': [
+                        f'git_deploy:/tmp/pecl_{mod_pecl_name}',
+                        f'pkg_apt:php{php_version}',
+                        'pkg_apt:build-essential'
+                    ],
+                    # not needed, if we already have an ini
+                    # TODO: make this dependent on different content
+                    'unless': f'test -f {php_config_path}/mods-available/{mod_name}.ini '
+                               f'|| test -f /tmp/pecl_{mod_name}/configure',
+                }
+                actions[f'pecl_{mod_name}_configure_php{php_version}'] = {
+                    'command': f'cd /tmp/pecl_{mod_pecl_name} && ./configure',
+                    'needs': [
+                        f'action:pecl_{mod_name}_phpize{php_version}',
+                    ],
+                    # not needed, if we already have an ini
+                    # TODO: make this dependent on different content
+                    'unless': f'test -f {php_config_path}/mods-available/{mod_name}.ini '
+                               f'|| test -f /tmp/pecl_{mod_pecl_name}/Makefile',
+                }
+                actions[f'pecl_{mod_name}_make_install_php{php_version}'] = {
+                    'command': f'cd /tmp/pecl_{mod_pecl_name} && make && make install',
+                    'needs': [
+                        f'action:pecl_{mod_name}_configure_php{php_version}',
+                    ],
+                    # not needed, if we already have an ini
+                    # TODO: make this dependent on different content
+                    'unless': f'test -f {php_config_path}/mods-available/{mod_name}.ini',
+                }
+                files[f'{php_config_path}/mods-available/{mod_name}.ini'] = {
+                    'content': '\n'.join([
+                        f"; configuration for php {mod_name} module",
+                        "; priority=20",
+                        f"extension={mod_name}.so",
+                    ]) + '\n',
+                    'needs': [
+                        f'action:pecl_{mod_name}_make_install_php{php_version}',
+                    ],
+                    'cascade_skip': False,
+                    # do not overwrite file, if it exists
+                    'unless': f'test -f {php_config_path}/mods-available/{mod_name}.ini',
+                }
+
+                needs += [
+                    f'file:{php_config_path}/mods-available/{mod_name}.ini',
+                ]
+            else:
+                # TODO: install certain version
+                actions[f'pecl_install_{mod_name}'] = {
+                    'command': f'/usr/bin/pecl install {mod_pecl_name}',
+                    'unless': f'/usr/bin/pecl list | grep -q {mod_pecl_name}',
+                    'needs': [
+                        'pkg_apt:build-essential',
+                        'pkg_apt:pkg-php-tools',
+                    ],
+                    'cascade_skip': False,
+                }
+
+                files[f'{php_config_path}/mods-available/{mod_name}.ini'] = {
+                    'content': '\n'.join([
+                        f"; configuration for php {mod_name} module",
+                        "; priority=20",
+                        f"extension={mod_name}.so",
+                    ]) + '\n',
+                    'needs': [
+                        f'action:pecl_install_{mod_name}',
+                    ],
+                    'cascade_skip': False,
+                    # do not overwrite file, if it exists
+                    'unless': f'test -f {php_config_path}/mods-available/{mod_name}.ini',
+                }
+
+                needs += [
+                    f'action:pecl_install_{mod_name}',
+                ]
+
+        elif mod_config.get('pear', False):
+            mod_pear_name = mod_config.get('pear_name', mod_name)
+            actions[f'pear_install_{mod_name}_php{php_version}'] = {
+                'command': f'/usr/bin/pear install {mod_pear_name}',
+                'unless': f'test -f {php_config_path}/mods-available/{mod_name}.ini',
+                'needs': ['pkg_apt:php-pear', ],
                 'cascade_skip': False,
             }
 
             needs += [
-                'action:pecl_install_{}'.format(mod_peclname)
+                f'action:pear_install_{mod_name}_php{php_version}',
             ]
 
-    elif mod_config.get('pear', False):
-        mod_pearname = mod_config.get('pear_name', mod_name)
-        actions['pear_install_{}'.format(mod_pearname)] = {
-            'command': '/usr/bin/pear install {}'.format(mod_name),
-            'unless': 'test -f {path}/mods-available/{name}.ini'.format(path=php_config_path, name=mod_name),
-            'needs': ['pkg_apt:php-pear'],
-            'cascade_skip': False,
-        }
+        else:
+            needs += [
+                'pkg_apt:{}'.format(mod_config.get('apt', f'php{php_version}-{mod_name}'))
+            ]
 
-        needs += [
-            'action:pear_install_{}'.format(mod_pearname)
-        ]
-
-    else:
-        mod_aptname = mod_config.get('apt', 'php{}-{}'.format(php_version, mod_name))
-
-        needs += [
-            'pkg_apt:{}'.format(mod_aptname)
-        ]
-
-    if mod_config.get('enabled', False):
-        actions['enable_mod_{}'.format(mod_name)] = {
-            'command': '/usr/sbin/phpenmod {}'.format(mod_name),
-            'unless': 'test -f {path}/cli/conf.d/*-{name}.ini'.format(path=php_config_path, name=mod_name),
-            'needs': needs,
-            'cascade_skip': False,
-        }
-    else:
-        actions['disable_mod_{}'.format(mod_name)] = {
-            'command': '/usr/sbin/phpdismod {}'.format(mod_name),
-            'unless': 'test ! -f {path}/cli/conf.d/*-{name}.ini'.format(path=php_config_path, name=mod_name),
-            'needs': needs,
-            'cascade_skip': False,
-        }
+        # install module into php
+        if mod_config.get('enabled', False):
+            actions[f'enable_mod_{mod_name}_php{php_version}'] = {
+                'command': f'/usr/sbin/phpenmod -v {php_version} {mod_name}',
+                'unless': f'test -f {php_config_path}/cli/conf.d/*-{mod_name}.ini',
+                'needs': needs,
+                'cascade_skip': False,
+                'triggers': [
+                    f'svc_systemd:php{php_version}-fpm.service:restart',
+                ]
+            }
+        else:
+            actions[f'disable_mod_{mod_name}_php{php_version}'] = {
+                'command': f'/usr/sbin/phpdismod -v {php_version} {mod_name}',
+                'unless': f'test ! -f {php_config_path}/cli/conf.d/*-{mod_name}.ini',
+                'needs': needs,
+                'cascade_skip': False,
+                'triggers': [
+                    f'svc_systemd:php{php_version}-fpm.service:restart',
+                ]
+            }
 

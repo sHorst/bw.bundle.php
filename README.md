@@ -3,6 +3,8 @@ PHP Bundle
 
 This bundle checks the METADATA for php content and applies them.
 
+It is capable to install multiple php versions.
+
 Install
 -------
 
@@ -22,21 +24,27 @@ Demo Metadata
 ```python
 metadata = {
     'php': {
-        'version': '7.3',
-        'modules': {
-            'mysqli': {
-                'enabled': True,
-                'apt': 'php7.3-mysql',
-            },
+        'default_version': '7.3',
+        'global_modules': {
             'zip': {
                 'enabled': True,
             },
             'intl': {
                 'enabled': True,
             },
-            'mbstring': {
-                'enabled': True,
-            }
+        },
+        'versions': {
+            '7.3': {
+                'modules': {
+                    'mysqli': {
+                        'enabled': True,
+                        'apt': 'php7.3-mysql',
+                    },
+                    'mbstring': {
+                        'enabled': True,
+                    }
+                },
+            },
         },
     },
 }
