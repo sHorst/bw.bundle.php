@@ -16,13 +16,12 @@ if node.has_bundle('apt'):
         'content_type': 'binary',
     }
 
+svc_systemd = {}
 
 for php_version, php_config in node.metadata.get('php', {}).get('versions', {}).items():
     php_config_path = php_config['config_path']
 
-    svc_systemd = {
-        f'php{php_version}-fpm.service': {},
-    }
+    svc_systemd[f'php{php_version}-fpm.service'] = {}
 
     needs = []
     for mod_name, mod_config in php_config.get('modules', {}).items():
@@ -159,4 +158,3 @@ for php_version, php_config in node.metadata.get('php', {}).get('versions', {}).
                     f'svc_systemd:php{php_version}-fpm.service:restart',
                 ]
             }
-
