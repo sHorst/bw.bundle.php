@@ -70,6 +70,7 @@ def add_php_to_apache_config(metadata):
                 'additional_config': {
                     'php': [
                         '<FilesMatch \\.php$>',
+                        '  SetEnvIf Authorization .+ HTTP_AUTHORIZATION=$0',  # Make Auth work
                         '  SetHandler "proxy:unix:/var/run/php/php{version}-fpm.sock|fcgi://localhost"'.format(
                             version=vhost['php']
                         ),
