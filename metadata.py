@@ -8,6 +8,8 @@ if node.os == 'debian':
         default_php_version = '7.0'
     elif node.os_version[0] == 10:
         default_php_version = '7.3'
+    elif node.os_version[0] == 11:
+        default_php_version = '7.4'
 
 defaults['php'] = {
     'default_version': default_php_version,
