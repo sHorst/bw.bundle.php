@@ -81,8 +81,13 @@ def add_php_to_apache_config(metadata):
                 }
             }
 
+    modules = {}
+    if len(vhosts) > 0:
+        modules = {'proxy_fcgi': {'enabled': True}}
+
     return {
         'apache': {
+            'modules': modules,
             'vhosts': vhosts,
         }
     }
