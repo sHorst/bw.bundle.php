@@ -25,6 +25,18 @@ for php_version, php_config in node.metadata.get('php', {}).get('versions', {}).
         'needs': [f'pkg_apt:php{php_version}-fpm']
     }
 
+    custom_config = node.metadata.get('php/custom_config', {})
+    custom_config.update(php_config.get('custom_config', {}))
+
+    for t, content in custom_config.items():
+        files[f'/etc/php/{php_version}/{t}/conf.d/99-custom.ini'] = {
+            'content': '\n'.join(sorted([f'{k}={v}' for k, v in content.items()])) + '\n',
+            'content_type': 'text',
+            'triggers': [
+                f'svc_systemd:php{php_version}-fpm.service:restart',
+            ]
+        }
+
     needs = []
     for mod_name, mod_config in php_config.get('modules', {}).items():
         if mod_config.get('pecl', False):
