@@ -5,14 +5,14 @@ files = {}
 
 if node.has_bundle('apt'):
     files['/etc/apt/sources.list.d/php.list'] = {
-        'content': 'deb https://packages.sury.org/php/ {release_name} main\n'.format(
+        'content': 'deb [signed-by=/usr/share/keyrings/php.gpg] https://packages.sury.org/php/ {release_name} main\n'.format(
             release_name=node.metadata.get(node.os).get('release_name')
         ),
         'content_type': 'text',
-        'needs': ['file:/etc/apt/trusted.gpg.d/php.gpg', ],
+        'needs': ['file:/usr/share/keyrings/php.gpg', ],
         'triggers': ["action:force_update_apt_cache", ],
     }
-    files['/etc/apt/trusted.gpg.d/php.gpg'] = {
+    files['/usr/share/keyrings/php.gpg'] = {
         'content_type': 'binary',
     }
 
